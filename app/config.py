@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
 
     cors_origins: str = "*"
+    google_client_ids: str = ""
+
+    @property
+    def google_client_id_list(self) -> list[str]:
+        return [client_id.strip() for client_id in self.google_client_ids.split(",") if client_id.strip()]
 
     @property
     def database_url(self) -> str:

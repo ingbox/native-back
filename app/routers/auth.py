@@ -11,8 +11,8 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.user import RefreshToken, User, UserSettings
-from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse, UserPublic
-from app.security import create_access_token, create_refresh_token, decode_token, hash_password, verify_password
+from app.schemas.auth import GoogleLoginRequest, RefreshRequest, TokenResponse, UserPublic
+from app.security import create_access_token, create_refresh_token, decode_token, verify_google_id_token
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -39,28 +39,42 @@ async def _issue_tokens(db: AsyncSession, user: User) -> TokenResponse:
     )
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
-    exists = await db.scalar(select(User.id).where(User.username == body.username))
-    if exists:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 사용 중인 아이디예요")
-
-    user = User(
-        username=body.username,
-        hashed_password=hash_password(body.password),
-        display_name=body.display_name or body.username,
-    )
-    db.add(user)
-    await db.flush()
-    db.add(UserSettings(user_id=user.id))
-    return await _issue_tokens(db, user)
+def _google_username(sub: str) -> str:
+    digest = hashlib.sha256(f"google:{sub}".encode("utf-8")).hexdigest()
+    return f"g{digest[:19]}"
 
 
-@router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
-    user = await db.scalar(select(User).where(User.username == body.username))
-    if user is None or not verify_password(body.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="아이디 또는 비밀번호가 올바르지 않아요")
+@router.post("/google", response_model=TokenResponse)
+async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    info = verify_google_id_token(body.id_token)
+    sub = str(info["sub"])
+    email = info.get("email") if info.get("email_verified") else None
+    raw_name = info.get("name") or (email.split("@")[0] if email else "삐삐")
+    display_name = str(raw_name)[:40]
+
+    user = await db.scalar(select(User).where(User.google_sub == sub))
+    if user is None and email:
+        user = await db.scalar(select(User).where(User.email == email))
+        if user is not None:
+            user.google_sub = sub
+
+    if user is None:
+        user = User(
+            username=_google_username(sub),
+            hashed_password=None,
+            display_name=display_name,
+            google_sub=sub,
+            email=email,
+        )
+        db.add(user)
+        await db.flush()
+        db.add(UserSettings(user_id=user.id))
+    else:
+        if email:
+            user.email = email
+        if display_name and user.display_name.startswith("g"):
+            user.display_name = display_name
+
     return await _issue_tokens(db, user)
 
 
