@@ -11,8 +11,14 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.user import RefreshToken, User, UserSettings
-from app.schemas.auth import GoogleLoginRequest, RefreshRequest, TokenResponse, UserPublic
-from app.security import create_access_token, create_refresh_token, decode_token, verify_google_id_token
+from app.schemas.auth import GoogleLoginRequest, LoginRequest, RefreshRequest, TokenResponse, UserPublic
+from app.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    verify_google_id_token,
+    verify_password,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -42,6 +48,15 @@ async def _issue_tokens(db: AsyncSession, user: User) -> TokenResponse:
 def _google_username(sub: str) -> str:
     digest = hashlib.sha256(f"google:{sub}".encode("utf-8")).hexdigest()
     return f"g{digest[:19]}"
+
+
+@router.post("/login", response_model=TokenResponse)
+async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+    email = body.email.strip().lower()
+    user = await db.scalar(select(User).where(User.email == email))
+    if user is None or not user.hashed_password or not verify_password(body.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="이메일 또는 비밀번호가 올바르지 않아요")
+    return await _issue_tokens(db, user)
 
 
 @router.post("/google", response_model=TokenResponse)

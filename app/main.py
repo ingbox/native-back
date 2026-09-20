@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.models import code, message, room, user  # noqa: F401
 from app.routers import auth, codes, health, messages, pairing, settings as settings_router, ws
-from app.services.seed import seed_pager_codes
+from app.services.seed import seed_dev_users, seed_pager_codes
 
 
 async def ensure_google_auth_columns(conn) -> None:
@@ -19,6 +19,9 @@ async def ensure_google_auth_columns(conn) -> None:
     await conn.execute(text("ALTER TABLE pipi_users ADD COLUMN IF NOT EXISTS email VARCHAR(255)"))
     await conn.execute(
         text("CREATE UNIQUE INDEX IF NOT EXISTS ix_pipi_users_google_sub ON pipi_users (google_sub)")
+    )
+    await conn.execute(
+        text("CREATE UNIQUE INDEX IF NOT EXISTS ix_pipi_users_email ON pipi_users (email)")
     )
 
 
@@ -29,6 +32,7 @@ async def lifespan(_: FastAPI):
         await ensure_google_auth_columns(conn)
     async with SessionLocal() as db:
         await seed_pager_codes(db)
+        await seed_dev_users(db)
     yield
     await engine.dispose()
 
