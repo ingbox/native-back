@@ -47,5 +47,25 @@ async def find_user_room(db: AsyncSession, user_id: UUID) -> Optional[Room]:
     return result.scalar_one_or_none()
 
 
+def ordered_pair(a: UUID, b: UUID) -> tuple[UUID, UUID]:
+    return (a, b) if str(a) < str(b) else (b, a)
+
+
+async def find_room_between(db: AsyncSession, a: UUID, b: UUID) -> Optional[Room]:
+    user_a_id, user_b_id = ordered_pair(a, b)
+    return await db.scalar(select(Room).where(Room.user_a_id == user_a_id, Room.user_b_id == user_b_id))
+
+
+async def get_or_create_room(db: AsyncSession, a: UUID, b: UUID) -> Room:
+    room = await find_room_between(db, a, b)
+    if room is not None:
+        return room
+    user_a_id, user_b_id = ordered_pair(a, b)
+    room = Room(user_a_id=user_a_id, user_b_id=user_b_id)
+    db.add(room)
+    await db.flush()
+    return room
+
+
 def partner_id(room: Room, user_id: UUID) -> UUID:
     return room.user_b_id if room.user_a_id == user_id else room.user_a_id

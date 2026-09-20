@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import bcrypt
 
+from app.deps import get_or_create_room
 from app.models.code import PagerCode
 from app.models.user import User, UserSettings
 
@@ -66,4 +67,14 @@ async def seed_dev_users(db: AsyncSession) -> None:
         user.hashed_password = _hash_password(item["password"])
         if not user.display_name:
             user.display_name = item["display_name"]
+    await db.commit()
+    await seed_couple_room(db)
+
+
+async def seed_couple_room(db: AsyncSession) -> None:
+    emails = [item["email"].lower() for item in DEV_USERS]
+    users = list((await db.scalars(select(User).where(User.email.in_(emails)))).all())
+    if len(users) < 2:
+        return
+    await get_or_create_room(db, users[0].id, users[1].id)
     await db.commit()

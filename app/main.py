@@ -9,7 +9,7 @@ from sqlalchemy import text
 from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.models import code, message, room, user  # noqa: F401
-from app.routers import auth, codes, health, messages, pairing, settings as settings_router, ws
+from app.routers import auth, codes, health, messages, pairing, rooms, settings as settings_router, ws
 from app.services.seed import seed_dev_users, seed_pager_codes
 
 
@@ -56,6 +56,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(pairing.router)
+app.include_router(rooms.router)
 app.include_router(messages.router)
 app.include_router(codes.router)
 app.include_router(settings_router.router)
