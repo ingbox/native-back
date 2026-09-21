@@ -44,7 +44,7 @@ async def find_user_room(db: AsyncSession, user_id: UUID) -> Optional[Room]:
     result = await db.execute(
         select(Room).where(or_(Room.user_a_id == user_id, Room.user_b_id == user_id))
     )
-    return result.scalar_one_or_none()
+    return result.scalars().first()
 
 
 def ordered_pair(a: UUID, b: UUID) -> tuple[UUID, UUID]:

@@ -27,13 +27,19 @@ class ConnectionManager:
         websocket = self.rooms.get(room_id, {}).get(user_id)
         if websocket is None:
             return
-        await websocket.send_json(payload)
+        try:
+            await websocket.send_json(payload)
+        except Exception:
+            self.disconnect(room_id, user_id)
 
     async def broadcast(self, room_id: UUID, payload: dict, exclude: Optional[UUID] = None) -> None:
         for user_id, websocket in list(self.rooms.get(room_id, {}).items()):
             if exclude is not None and user_id == exclude:
                 continue
-            await websocket.send_json(payload)
+            try:
+                await websocket.send_json(payload)
+            except Exception:
+                self.disconnect(room_id, user_id)
 
 
 manager = ConnectionManager()
