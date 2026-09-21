@@ -13,7 +13,18 @@ class ConnectionManager:
 
     async def connect(self, room_id: UUID, user_id: UUID, websocket: WebSocket) -> None:
         await websocket.accept()
+        self.join(room_id, user_id, websocket)
+
+    def join(self, room_id: UUID, user_id: UUID, websocket: WebSocket) -> None:
         self.rooms[room_id][user_id] = websocket
+
+    def leave_all(self, user_id: UUID) -> list[UUID]:
+        left: list[UUID] = []
+        for room_id in list(self.rooms.keys()):
+            if user_id in self.rooms.get(room_id, {}):
+                self.disconnect(room_id, user_id)
+                left.append(room_id)
+        return left
 
     def disconnect(self, room_id: UUID, user_id: UUID) -> None:
         connections = self.rooms.get(room_id)

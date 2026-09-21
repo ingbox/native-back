@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 class SendMessageRequest(BaseModel):
     digits: str = Field(min_length=1, max_length=64)
+    room_id: UUID
 
 
 class MessageOut(BaseModel):

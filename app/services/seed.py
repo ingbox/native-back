@@ -38,6 +38,12 @@ DEV_USERS = [
         "display_name": "dpwlsdl032097",
         "password": "1234",
     },
+    {
+        "email": "ingbox02@gmail.com",
+        "username": "ingbox02",
+        "display_name": "ingbox02",
+        "password": "1234",
+    },
 ]
 
 
@@ -72,7 +78,7 @@ async def seed_dev_users(db: AsyncSession) -> None:
 
 
 async def seed_couple_room(db: AsyncSession) -> None:
-    emails = [item["email"].lower() for item in DEV_USERS]
+    emails = ["ingbox01@gmail.com", "dpwlsdl032097@gmail.com"]
     users = list((await db.scalars(select(User).where(User.email.in_(emails)))).all())
     if len(users) < 2:
         return

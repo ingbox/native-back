@@ -9,9 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.deps import get_current_room, get_current_user
+from app.deps import get_current_user, get_owned_room
 from app.models.message import Message
-from app.models.room import Room
 from app.models.user import User
 from app.schemas.message import MessageListResponse, MessageOut, SendMessageRequest
 from app.services.ws_manager import manager
@@ -37,12 +36,13 @@ def decode_cursor(cursor: str) -> datetime:
 
 @router.get("", response_model=MessageListResponse)
 async def list_messages(
+    room_id: UUID,
     before: Optional[str] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     user: User = Depends(get_current_user),
-    room: Room = Depends(get_current_room),
     db: AsyncSession = Depends(get_db),
 ) -> MessageListResponse:
+    room = await get_owned_room(db, user.id, room_id)
     stmt = select(Message).where(Message.room_id == room.id)
     if before:
         stmt = stmt.where(Message.created_at < decode_cursor(before))
@@ -61,10 +61,11 @@ async def list_messages(
 
 @router.get("/latest", response_model=Optional[MessageOut])
 async def latest_message(
+    room_id: UUID,
     user: User = Depends(get_current_user),
-    room: Room = Depends(get_current_room),
     db: AsyncSession = Depends(get_db),
 ) -> Optional[MessageOut]:
+    room = await get_owned_room(db, user.id, room_id)
     message = await db.scalar(
         select(Message).where(Message.room_id == room.id).order_by(Message.created_at.desc()).limit(1)
     )
@@ -75,9 +76,9 @@ async def latest_message(
 async def send_message(
     body: SendMessageRequest,
     user: User = Depends(get_current_user),
-    room: Room = Depends(get_current_room),
     db: AsyncSession = Depends(get_db),
 ) -> MessageOut:
+    room = await get_owned_room(db, user.id, body.room_id)
     message = Message(room_id=room.id, sender_id=user.id, digits=body.digits)
     db.add(message)
     await db.commit()
@@ -87,6 +88,7 @@ async def send_message(
         "type": "message.new",
         "payload": {
             "id": str(message.id),
+            "room_id": str(room.id),
             "digits": message.digits,
             "sender_id": str(message.sender_id),
             "created_at": message.created_at.isoformat(),

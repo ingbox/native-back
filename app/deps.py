@@ -40,11 +40,23 @@ async def get_current_room(
     return room
 
 
-async def find_user_room(db: AsyncSession, user_id: UUID) -> Optional[Room]:
+async def get_owned_room(db: AsyncSession, user_id: UUID, room_id: UUID) -> Room:
+    room = await db.get(Room, room_id)
+    if room is None or (room.user_a_id != user_id and room.user_b_id != user_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="채팅방을 찾을 수 없어요")
+    return room
+
+
+async def find_user_rooms(db: AsyncSession, user_id: UUID) -> list[Room]:
     result = await db.execute(
         select(Room).where(or_(Room.user_a_id == user_id, Room.user_b_id == user_id))
     )
-    return result.scalars().first()
+    return list(result.scalars().all())
+
+
+async def find_user_room(db: AsyncSession, user_id: UUID) -> Optional[Room]:
+    rooms = await find_user_rooms(db, user_id)
+    return rooms[0] if rooms else None
 
 
 def ordered_pair(a: UUID, b: UUID) -> tuple[UUID, UUID]:
